@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.0";
+our $VERSION = "1.1";
 
 =head1 NAME
 
@@ -459,11 +459,11 @@ our $TEMPLATE_SRC = <<END;
            return;
         }
 
-        /* trigger onselect */
-        <tmpl_if onselect><tmpl_var onselect>(<tmpl_var name>_selected_val)</tmpl_if>
-
         /* fill in a form field if they spec'd one */
         <tmpl_if form_field><tmpl_if form_field_form>document.forms["<tmpl_var form_field_form>"]<tmpl_else>document.forms[0]</tmpl_if>.elements["<tmpl_var form_field>"].value = <tmpl_var name>_selected_val;</tmpl_if>
+
+        /* trigger onselect */
+        <tmpl_if onselect><tmpl_var onselect>(<tmpl_var name>_selected_val)</tmpl_if>
          
         <tmpl_var name>_close();
   }
@@ -489,10 +489,9 @@ our $TEMPLATE_SRC = <<END;
   <div class="hpts-title"><tmpl_var title></div>
   <tmpl_loop loop>
     <tmpl_unless end_block>
-       <div>
+       <div nowrap>
           <tmpl_if has_children>
-              <img id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')">
-          <tmpl_else>
+              <img id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')">          <tmpl_else>
               <img width=16 height=16 src="<tmpl_var image_path>L.png"><span id="<tmpl_var name>-line-<tmpl_var id>" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')">
           </tmpl_if>
                  <img id="<tmpl_var name>-node-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path>closed_node.png">
@@ -500,13 +499,13 @@ our $TEMPLATE_SRC = <<END;
              </span>
        </div>
        <tmpl_if has_children>
-          <div id="<tmpl_var name>-desc-<tmpl_var id>" class="hpts-block" <tmpl_if open>style="display: block"<tmpl_else>style="display: none"</tmpl_if>>
+          <div id="<tmpl_var name>-desc-<tmpl_var id>" class="hpts-block" <tmpl_if open>style="display: block"<tmpl_else>style="display: none"</tmpl_if> nowrap>
        </tmpl_if>
     <tmpl_else>
       </div>
     </tmpl_unless>
   </tmpl_loop>
-  <div class="hpts-bbar">
+  <div class="hpts-bbar" nowrap>
     <input class=hpts-button type=button value=" Ok " onclick="<tmpl_var name>_ok()">
     <input class=hpts-button type=button value="Cancel" onclick="<tmpl_var name>_cancel()">
   </div>

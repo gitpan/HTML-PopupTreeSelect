@@ -1,6 +1,11 @@
 Revision history for Perl extension HTML::PopupTreeSelect.
 
-0.01  Wed Apr 30 17:32:21 2003
-	- original version; created by h2xs 1.21 with options
-		-XA -n HTML::PopupTreeSelect
+1.0 Wed Apr 30 17:32:21 2003
+    - First Release
 
+1.1
+    - Fixed bug where IE sometimes decided to wrap rows.
+
+    - Changed code to setup form_field before calling onselect
+      handler.  This allows the onselect handler to submit a form
+      with the value already set.
