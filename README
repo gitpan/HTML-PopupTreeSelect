@@ -1,4 +1,4 @@
-HTML::PopupTreeSelect version 1.4
+HTML::PopupTreeSelect version 1.5
 =================================
 
 This module creates an HTML popup tree selector.  The HTML and
@@ -15,18 +15,13 @@ You can find it here:
 
 CHANGES
 
-    1.4
+1.5 
+    - Added the ability to resize the chooser by dragging the lower
+      edge.  This is off by default but may be turned on using the
+      new 'resizable' option.  (Zac Shepard and Peter Leonard)
 
-    - Improved support for sub-classing. (Chris Nandor)
-
-    - Added support for multiple root nodes. (Chris Nandor)  
-
-    - Added new 'parent_var' option to supply parent info in the node
-      loop. (Chris Nandor)
-
-    - Added 'inactive' flag to node structure, allowing individual
-      nodes to be unavailable for selection.
-
+    - Fixed a few HTML and CSS standards-compliance problems.
+      (Don Brodale)
 
 INSTALLATION
 

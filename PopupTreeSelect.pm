@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.4";
+our $VERSION = "1.5";
 our $TEMPLATE_SRC;
 
 =head1 NAME
@@ -57,7 +57,7 @@ HTML::PopupTreeSelect - HTML popup tree widget
 
   # include it in your HTML page, for example using HTML::Template:
   $template->param(category_select => $select->output);
- 
+
 =head1 DESCRIPTION
 
 This module creates an HTML popup tree selector.  The HTML and
@@ -71,6 +71,12 @@ I based the design for this widget on the xTree widget from WebFX.
 You can find it here:
 
   http://webfx.eae.net/dhtml/xtree/
+
+This module is used to provide the category chooser in Krang, an open
+source content management system.  You can find out more about Krang
+here:
+
+  http://krang.sf.net
 
 =head1 INSTALLATION
 
@@ -169,6 +175,13 @@ colors and spacing in the output widget.
 
 If you run the widget with include_css set to 1 then you can use that
 output as a base on which to make changes.
+
+=item resizable (optional)
+
+Set this to 1 and the default widget output will not be resizable.  If 
+you run the widget with resizable set to 1 then default output will
+have a bar at the bottom which allows it to be resized by dragging.
+Defaults to 0.
 
 =item image_path (optional)
 
@@ -318,6 +331,7 @@ sub new {
                        hide_textareas=> 0,
                        indent_width  => 25,
                        include_css   => 1,
+                       resizable     => 0,
                        image_path    => ".",
                        parent_var    => 0,
                        @_,
@@ -354,9 +368,9 @@ sub output {
                                              form_field form_field_form
                                              button_label
                                              button_image title 
-                                             include_css image_path
-                                             scrollbars hide_selects
-                                             hide_textareas
+                                             include_css resizable
+                                             image_path scrollbars
+                                             hide_selects hide_textareas
                                             ));
 
     # get output for the widget
@@ -482,15 +496,27 @@ $TEMPLATE_SRC = <<END;
      background:       #ffffff;
   }
 
+  /* style for bottom bar used for resizing */
+  .hpts-botbar {
+      background-color: #666666;
+      width:            <tmpl_var width>px;
+      font-size:        7px;
+      padding:          3px;
+  }
+
 --></style></tmpl_if>
 
-<script language="javascript">
+<script type="text/javascript">
+<!--
   /* record location of mouse on each click */
   var hpts_mouseX;
   var hpts_mouseY;
   var hpts_offsetX;
   var hpts_offsetY;
-  var hpts_locked_obj;
+  var hpts_locked_titlebar;  /* for moving */
+  var hpts_locked_botbar;  /* for resizing */
+  var hpts_curr_width = <tmpl_if width><tmpl_var width><tmpl_else>225</tmpl_if>;
+  var hpts_curr_height = <tmpl_if height><tmpl_var height><tmpl_else>200</tmpl_if>;
 
   document.onmousedown = hpts_lock;
   document.onmousemove = hpts_drag;
@@ -501,23 +527,39 @@ $TEMPLATE_SRC = <<END;
         hpts_set_locked(evt);
         hpts_update_mouse(evt);
 
-        if (hpts_locked_obj) {
+        if (hpts_locked_titlebar) {
             if (evt.pageX) {
-               hpts_offsetX = evt.pageX - ((hpts_locked_obj.offsetLeft) ? 
-                              hpts_locked_obj.offsetLeft : hpts_locked_obj.left);
-               hpts_offsetY = evt.pageY - ((hpts_locked_obj.offsetTop) ? 
-                              hpts_locked_obj.offsetTop : hpts_locked_obj.top);
+               hpts_offsetX = evt.pageX - ((hpts_locked_titlebar.offsetLeft) ? 
+                              hpts_locked_titlebar.offsetLeft : hpts_locked_titlebar.left);
+               hpts_offsetY = evt.pageY - ((hpts_locked_titlebar.offsetTop) ? 
+                              hpts_locked_titlebar.offsetTop : hpts_locked_titlebar.top);
             } else if (evt.offsetX || evt.offsetY) {
                hpts_offsetX = evt.offsetX - ((evt.offsetX < -2) ? 
                               0 : document.body.scrollLeft);
                hpts_offsetY = evt.offsetY - ((evt.offsetY < -2) ? 
                               0 : document.body.scrollTop);
             } else if (evt.clientX) {
-               hpts_offsetX = evt.clientX - ((hpts_locked_obj.offsetLeft) ? 
-                              hpts_locked_obj.offsetLeft : 0);
-               hpts_offsetY = evt.clientY - ((hpts_locked_obj.offsetTop) ? 
-                               hpts_locked_obj.offsetTop : 0);
+               hpts_offsetX = evt.clientX - ((hpts_locked_titlebar.offsetLeft) ? 
+                              hpts_locked_titlebar.offsetLeft : 0);
+               hpts_offsetY = evt.clientY - ((hpts_locked_titlebar.offsetTop) ? 
+                               hpts_locked_titlebar.offsetTop : 0);
             }
+            return false;
+        }
+
+        if (hpts_locked_botbar) {
+            if (evt.pageX) {
+               hpts_offsetX = evt.pageX;
+               hpts_offsetY = evt.pageY;
+            } else if (evt.clientX) {
+               hpts_offsetX = evt.clientX;
+               hpts_offsetY = evt.clientY;
+            } else if (evt.offsetX || evt.offsetY) {
+               hpts_offsetX = evt.offsetX - ((evt.offsetX < -2) ? 
+                              0 : document.body.scrollLeft);
+               hpts_offsetY = evt.offsetY - ((evt.offsetY < -2) ? 
+                              0 : document.body.scrollTop);
+            }            
             return false;
         }
 
@@ -538,27 +580,52 @@ $TEMPLATE_SRC = <<END;
   function hpts_set_locked(evt) {
     var target = (evt.target) ? evt.target : evt.srcElement;
     if (target && target.className == "hpts-title") { 
-       hpts_locked_obj = target.parentNode;
+       hpts_locked_titlebar = target.parentNode;
+       return;
+    } else if (target && target.className == "hpts-botbar") {
+       hpts_locked_botbar = target.parentNode;
        return;
     }
-    hpts_locked_obj = null;
+    hpts_locked_titlebar = null;
+    hpts_locked_botbar = null;
     return;
   }
 
   function hpts_drag(evt) {
         evt = (evt) ? evt : event;
         hpts_update_mouse(evt);
+        var titleobj = document.getElementById("<tmpl_var name>-title");
+        var innerobj = document.getElementById("<tmpl_var name>-inner");
+        var bbarobj = document.getElementById("<tmpl_var name>-bbar");
+        var botbarobj = document.getElementById("<tmpl_var name>-botbar");
 
-        if (hpts_locked_obj) {
-           hpts_locked_obj.style.left = (hpts_mouseX - hpts_offsetX) + "px";
-           hpts_locked_obj.style.top  = (hpts_mouseY - hpts_offsetY) + "px";
+        if (hpts_locked_titlebar) {
+           hpts_locked_titlebar.style.left = (hpts_mouseX - hpts_offsetX) + "px";
+           hpts_locked_titlebar.style.top  = (hpts_mouseY - hpts_offsetY) + "px";
+           evt.cancelBubble = true;
+           return false;
+        }
+
+        if (hpts_locked_botbar) {           
+           titleobj.style.width = (hpts_curr_width + hpts_mouseX - hpts_offsetX) + "px";
+           innerobj.style.width = (hpts_curr_width + hpts_mouseX - hpts_offsetX) + "px";
+           bbarobj.style.width = (hpts_curr_width + hpts_mouseX - hpts_offsetX) + "px";
+           botbarobj.style.width = (hpts_curr_width + hpts_mouseX - hpts_offsetX) + "px";
+           innerobj.style.height  = (hpts_curr_height + hpts_mouseY - hpts_offsetY) + "px";
            evt.cancelBubble = true;
            return false;
         }
   }
 
   function hpts_release(evt) {
-     hpts_locked_obj = null;
+     hpts_locked_titlebar = null;
+     if (hpts_locked_botbar){
+     var widthstr = document.getElementById("<tmpl_var name>-inner").style.width;
+     var heightstr = document.getElementById("<tmpl_var name>-inner").style.height;
+     hpts_curr_width = parseFloat(widthstr.substr(0,widthstr.indexOf("px")));
+     hpts_curr_height = parseFloat(heightstr.substr(0,heightstr.indexOf("px")));
+     }
+     hpts_locked_botbar = null;
   }
 
   var <tmpl_var name>_selected_id = -1;
@@ -604,9 +671,9 @@ $TEMPLATE_SRC = <<END;
   /* it's showtime! */
   function <tmpl_var name>_show() {
         var obj = document.getElementById("<tmpl_var name>-outer");
-        var x = Math.floor(hpts_mouseX - (<tmpl_var width>/2));
+        var x = Math.floor(hpts_mouseX - (hpts_curr_width/2));
         x = (x > 2 ? x : 2);
-        var y = Math.floor(hpts_mouseY - (<tmpl_if height><tmpl_var height>/5 * 4<tmpl_else>100</tmpl_if>));
+        var y = Math.floor(hpts_mouseY - (hpts_curr_height/5 * 4));
         y = (y > 2 ? y : 2);
 
         obj.style.left = x + "px";
@@ -689,38 +756,40 @@ $TEMPLATE_SRC = <<END;
         }
       </tmpl_if>
   }
-
+  //-->
 </script>
 
 <div id="<tmpl_var name>-outer" class="hpts-outer">
-  <div class="hpts-title" id="<tmpl_var name>-title>"><tmpl_var title></div>
-  <div class="hpts-inner">
+  <div class="hpts-title" id="<tmpl_var name>-title"><tmpl_var title></div>
+  <div class="hpts-inner" id="<tmpl_var name>-inner">
   <tmpl_loop loop>
     <tmpl_unless end_block>
-       <div nowrap>
+       <div style="white-space:nowrap">
           <tmpl_if has_children>
-              <img id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>          <tmpl_else>
-              <img width=16 height=16 src="<tmpl_var image_path>L.png"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>
+              <img alt="" id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>
+          <tmpl_else>
+              <img alt="" width=16 height=16 src="<tmpl_var image_path>L.png"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>
           </tmpl_if>
-                 <img id="<tmpl_var name>-node-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path>closed_node.png">
+                 <img id="<tmpl_var name>-node-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path>closed_node.png" alt="">
                  <tmpl_unless inactive><a href="javascript:void(0);"></tmpl_unless><tmpl_var label><tmpl_unless inactive></a></tmpl_unless>
              </span>
        </div>
        <tmpl_if has_children>
-          <div id="<tmpl_var name>-desc-<tmpl_var id>" class="hpts-block" <tmpl_if open>style="display: block"<tmpl_else>style="display: none"</tmpl_if> nowrap>
+          <div id="<tmpl_var name>-desc-<tmpl_var id>" class="hpts-block" style="white-space: nowrap; display: <tmpl_if open>block<tmpl_else>none</tmpl_if>">
        </tmpl_if>
     <tmpl_else>
       </div>
     </tmpl_unless>
   </tmpl_loop>
   </div>
-  <div class="hpts-bbar" nowrap>
-    <input class=hpts-button type=button value=" Ok " onclick="<tmpl_var name>_ok()">
-    <input class=hpts-button type=button value="Cancel" onclick="<tmpl_var name>_cancel()">
+  <div class="hpts-bbar" id="<tmpl_var name>-bbar" style="white-space:nowrap">
+    <input class="hpts-button" type="button" value=" Ok " onclick="<tmpl_var name>_ok()">
+    <input class="hpts-button" type="button" value="Cancel" onclick="<tmpl_var name>_cancel()">
   </div>
+<tmpl_if resizable>  <div id="<tmpl_var name>-botbar" class="hpts-botbar">&nbsp;</div></tmpl_if>
 </div>
 
-<input class=hpts-button type=button value="<tmpl_var button_label>" onmouseup="<tmpl_var name>_show()">
+<input class="hpts-button" type="button" value="<tmpl_var button_label>" onmouseup="<tmpl_var name>_show()">
 END
 
 1;

@@ -1,5 +1,13 @@
 Revision history for HTML::PopupTreeSelect.
 
+1.5
+    - Added the ability to resize the chooser by dragging the lower
+      edge.  This is off by default but may be turned on using the
+      new 'resizable' option.  (Zac Shepard and Peter Leonard)
+
+    - Fixed a few HTML and CSS standards-compliance problems.
+      (Don Brodale)
+
 1.4
     - Improved support for sub-classing. (Chris Nandor)
 
