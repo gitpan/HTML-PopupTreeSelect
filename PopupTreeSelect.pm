@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.2";
+our $VERSION = "1.3";
 
 =head1 NAME
 
@@ -56,13 +56,13 @@ HTML::PopupTreeSelect - HTML popup tree widget
 
   # include it in your HTML page, for example using HTML::Template:
   $template->param(category_select => $select->output);
-
+ 
 =head1 DESCRIPTION
 
 This module creates an HTML popup tree selector.  The HTML and
 Javascript produced will work in Mozilla 1+ (Netscape 6+) on all
-operating systems and Microsoft IE 5+ on Windows and Mac.  For an
-example, visit this page:
+operating systems, Microsoft IE 5+ and Safari 1.0.  For an example,
+visit this page:
 
   http://sam.tregar.com/html-popuptreeselect/example.html
 
@@ -194,9 +194,18 @@ explanation of the problem, see this page:
 
    http://www.webreference.com/dhtml/diner/seethru/
 
+=item hide_textareas (optional)
+
+This option will cause the chooser to dynamically hide textareas on
+the page when the chooser opens.  This is necessary to workaround a
+bug in Netscape 6.0 through 7.0 in which buttons hovering over
+textareas are not clickable.  This defect is fixed in version 7.1 and
+later.  This option defaults to 0, since this problem only affects
+older browsers.
+
 =back
 
-=head2 output()
+=head1 output()
 
 Call output() to get HTML from the widget object to include in your
 page.
@@ -226,11 +235,6 @@ patch for one of these and you're guaranteed a place in F<Changes>.
 
 Allow each node to specify its own icon.  Right now every node uses
 C<closed_node.png> and C<open_node.png>.
-
-=item *
-
-Write a better placement algorithm to ensure that the widget never
-pops-up halfway off the screen.
 
 =back
 
@@ -267,6 +271,7 @@ sub new {
                        width         => 300,
                        scrollbars    => 0,
                        hide_selects  => 1,
+                       hide_textareas=> 0,
                        indent_width  => 25,
                        include_css   => 1,
                        image_path    => ".",
@@ -307,6 +312,7 @@ sub output {
                                                   button_image title 
                                                   include_css image_path
                                                   scrollbars hide_selects
+                                                  hide_textareas
                                                  ));
                                                     
                 
@@ -555,6 +561,17 @@ our $TEMPLATE_SRC = <<END;
           }
         }
      </tmpl_if>
+
+      <tmpl_if hide_textareas>
+        for(var f = 0; f < document.forms.length; f++) {
+          for(var x = 0; x < document.forms[f].elements.length; x++) {
+             var e = document.forms[f].elements[x];
+             if (e.rows) {
+                e.style.visibility = "hidden";
+             }
+          }
+        }
+     </tmpl_if>
   }
 
   /* user clicks the ok button */
@@ -598,6 +615,17 @@ our $TEMPLATE_SRC = <<END;
           }
         }
       </tmpl_if>
+
+      <tmpl_if hide_textareas>
+        for(var f = 0; f < document.forms.length; f++) {
+          for(var x = 0; x < document.forms[f].elements.length; x++) {
+             var e = document.forms[f].elements[x];
+             if (e.rows) {
+                e.style.visibility = "visible";
+             }
+          }
+        }
+      </tmpl_if>
   }
 
 </script>
@@ -630,7 +658,7 @@ our $TEMPLATE_SRC = <<END;
   </div>
 </div>
 
-<input type=button value="<tmpl_var button_label>" onmouseup="<tmpl_var name>_show()">
+<input class=hpts-button type=button value="<tmpl_var button_label>" onmouseup="<tmpl_var name>_show()">
 END
 
 1;

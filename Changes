@@ -1,4 +1,4 @@
-Revision history for Perl extension HTML::PopupTreeSelect.
+.Revision history for Perl extension HTML::PopupTreeSelect.
 
 1.0 Wed Apr 30 17:32:21 2003
     - First Release
@@ -22,3 +22,10 @@ Revision history for Perl extension HTML::PopupTreeSelect.
     - NOTE: the default CSS has changed.  If you are using your own
       CSS you'll need to adjust it.  Just run the widget with
       include_css turned on and you'll see the new classes and settings.
+
+1.3
+    - Added hide_textareas option to workaround bug in Netscape
+      6.0 through 7.0 where buttons hovering over textareas are not
+      clickable.
+
+    - Now tested on Safari 1.0.

@@ -1,10 +1,10 @@
-HTML::PopupTreeSelect version 1.2
+HTML::PopupTreeSelect version 1.3
 =================================
 
 This module creates an HTML popup tree selector.  The HTML and
 Javascript produced will work in Mozilla 1+ (Netscape 6+) on all
-operating systems and Microsoft IE 5+ on Windows and Mac.  For an
-example, visit this page:
+operating systems, Microsoft IE 5+ and Safari 1.0.  For an example,
+visit this page:
 
   http://sam.tregar.com/hpts_demo.cgi
 
@@ -15,17 +15,11 @@ You can find it here:
 
 CHANGES
 
-    - Added ability to drag the widget around the window.
+    - Added hide_textareas option to workaround bug in Netscape
+      6.0 through 7.0 where buttons hovering over textareas are not
+      clickable
 
-    - Added dropshadow in Windows IE.
-
-    - Added workaround for the select-box show-through problem.
-
-    - Added scrollbars to the widget.
-
-    - NOTE: the default CSS has changed.  If you are using your own
-      CSS you'll need to adjust it.  Just run the widget with
-      include_css turned on and you'll see the new classes and settings.
+    - Now tested on Safari 1.0.
 
 INSTALLATION
 
