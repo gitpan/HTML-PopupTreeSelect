@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.1";
+our $VERSION = "1.2";
 
 =head1 NAME
 
@@ -56,7 +56,7 @@ HTML::PopupTreeSelect - HTML popup tree widget
 
   # include it in your HTML page, for example using HTML::Template:
   $template->param(category_select => $select->output);
- 
+
 =head1 DESCRIPTION
 
 This module creates an HTML popup tree selector.  The HTML and
@@ -81,7 +81,7 @@ See below for details.
 
 =head1 INTERFACE
 
-=head1 new()
+=head2 new()
 
 new(), is used to build a new HTML selector.  You call it with a
 description of the tree to display and get back an object.  Call it
@@ -168,9 +168,35 @@ be copied from the images directory in the module distribution into a
 place where your webserver can reach them.  By default this is empty
 and the widget expects to find images in the current directory.
 
+=item width (optional)
+
+Set this to the width of the popup window.  Defaults to 200.
+
+=item height (optional)
+
+Set this to the height of the tree box inside the window.  This
+defaults to 0 which allows the chooser to grow as the tree expands.
+If you set this option you'll probably want to set the
+C<use_scrollbars> option as well.
+
+=item scrollbars (optional)
+
+If set to 1 the chooser will have a fixed size (specified by width and
+height) and show scrollbars inside the tree area.
+
+=item hide_selects (optional)
+
+This option will cause the chooser to dynamically hide select boxes on
+the page when the chooser opens.  This is necessary in order to avoid
+the select boxes showing through the chooser under Windows in both IE
+and Mozilla (to a lesser extent).  This defaults to 1.  For a detailed
+explanation of the problem, see this page:
+
+   http://www.webreference.com/dhtml/diner/seethru/
+
 =back
 
-=head1 output()
+=head2 output()
 
 Call output() to get HTML from the widget object to include in your
 page.
@@ -183,20 +209,9 @@ page.
 
 =item *
 
-Under IE you'll find that select boxes show through the select window.
-This is a well known bug in IE's CSS positioning support and as far as
-I know there's nothing I can do about it.  Careful form design is the
-only solution.  Please contact me if you know different!
-
-=item *
-
-Performance on huge trees isn't great, but should improve in future
-versions.  This version should be usable up to around 10,000 nodes.
-
-=item *
-
-The javascript used to implement the widget needs control over
-the global document.onmousedown handler.  This means that 
+The javascript used to implement the widget needs control over the
+global document.onmousedown, document.onmousemove and
+document.onmouseup handlers.  This means that the 
 
 =back
 
@@ -214,8 +229,8 @@ C<closed_node.png> and C<open_node.png>.
 
 =item *
 
-Allow the select window to be dragged around by clicking and dragging
-the title.
+Write a better placement algorithm to ensure that the widget never
+pops-up halfway off the screen.
 
 =back
 
@@ -248,8 +263,10 @@ sub new {
     
     # setup defaults and get parameters
     my $self = bless({ button_label  => 'Choose',
-                       height        => 300,
+                       height        => 0,
                        width         => 300,
+                       scrollbars    => 0,
+                       hide_selects  => 1,
                        indent_width  => 25,
                        include_css   => 1,
                        image_path    => ".",
@@ -289,6 +306,7 @@ sub output {
                                                   button_label
                                                   button_image title 
                                                   include_css image_path
+                                                  scrollbars hide_selects
                                                  ));
                                                     
                 
@@ -338,6 +356,18 @@ our $TEMPLATE_SRC = <<END;
      left:             0px;
      border:           2px outset #333333;
      background-color: #ffffff;
+     filter:           progid:DXImageTransform.Microsoft.dropShadow( Color=bababa,offx=3,offy=3,positive=true);
+  }
+
+  /* style for the box that contains the tree */
+  .hpts-inner {
+<tmpl_if scrollbars>
+     overflow:         scroll;
+</tmpl_if>
+     width:            <tmpl_var width>px;
+<tmpl_if height>
+     height:           <tmpl_var height>px;
+</tmpl_if>
   }
 
   /* title bar style.  The width here will define a minimum width for
@@ -347,27 +377,29 @@ our $TEMPLATE_SRC = <<END;
      margin-bottom:    4px;     
      font-size:        large;
      color:            #ffffff;
-     background-color: #aaaaaa;
-     width:            200px;
+     background-color: #666666;
+     width:            <tmpl_var width>px;
   }
 
   /* style of a block of child nodes - indents them under their parent
      and starts them hidden */
   .hpts-block {
      margin-left:      24px;
+     display:          none;
   }
 
   /* style for the button bar at the bottom of the widget */
   .hpts-bbar {
-     padding:          2px;
+     padding:          3px;
      text-align:       right;
      margin-top:       10px;     
-     background-color: #aaaaaa;
-     width:            200px;
+     background-color: #666666;
+     width:            <tmpl_var width>px;
   }
 
   /* style for the buttons at the bottom of the widget */
   .hpts-button {
+     margin-left:      15px;
      background-color: #ffffff;
      color:            #000000;
   }
@@ -388,19 +420,77 @@ our $TEMPLATE_SRC = <<END;
   /* record location of mouse on each click */
   var hpts_mouseX;
   var hpts_mouseY;
-  document.onmousedown = hpts_loc;
+  var hpts_offsetX;
+  var hpts_offsetY;
+  var hpts_locked_obj;
 
+  document.onmousedown = hpts_lock;
+  document.onmousemove = hpts_drag;
+  document.onmouseup   = hpts_release;
 
-  function hpts_loc(evt) {
-        evt = (evt) ? evt : (event) ? event : null;
-        if (evt.pageX) {
-           hpts_mouseX = evt.pageX;
-           hpts_mouseY = evt.pageY;
-        } else {
-           hpts_mouseX = evt.clientX + document.documentElement.scrollLeft + document.body.scrollLeft;
-           hpts_mouseY = evt.clientY + document.documentElement.scrollTop  + document.body.scrollTop;
+  function hpts_lock(evt) {
+        evt = (evt) ? evt : event;
+        hpts_set_locked(evt);
+        hpts_update_mouse(evt);
+
+        if (hpts_locked_obj) {
+            if (evt.pageX) {
+               hpts_offsetX = evt.pageX - ((hpts_locked_obj.offsetLeft) ? 
+                              hpts_locked_obj.offsetLeft : hpts_locked_obj.left);
+               hpts_offsetY = evt.pageY - ((hpts_locked_obj.offsetTop) ? 
+                              hpts_locked_obj.offsetTop : hpts_locked_obj.top);
+            } else if (evt.offsetX || evt.offsetY) {
+               hpts_offsetX = evt.offsetX - ((evt.offsetX < -2) ? 
+                              0 : document.body.scrollLeft);
+               hpts_offsetY = evt.offsetY - ((evt.offsetY < -2) ? 
+                              0 : document.body.scrollTop);
+            } else if (evt.clientX) {
+               hpts_offsetX = evt.clientX - ((hpts_locked_obj.offsetLeft) ? 
+                              hpts_locked_obj.offsetLeft : 0);
+               hpts_offsetY = evt.clientY - ((hpts_locked_obj.offsetTop) ? 
+                               hpts_locked_obj.offsetTop : 0);
+            }
+            return false;
         }
+
         return true;
+  }
+
+  function hpts_update_mouse(evt) {
+      if (evt.pageX) {
+         hpts_mouseX = evt.pageX;
+         hpts_mouseY = evt.pageY;
+      } else {
+         hpts_mouseX = evt.clientX + document.documentElement.scrollLeft + document.body.scrollLeft;
+         hpts_mouseY = evt.clientY + document.documentElement.scrollTop  + document.body.scrollTop;
+      }
+  }
+
+
+  function hpts_set_locked(evt) {
+    var target = (evt.target) ? evt.target : evt.srcElement;
+    if (target && target.className == "hpts-title") { 
+       hpts_locked_obj = target.parentNode;
+       return;
+    }
+    hpts_locked_obj = null;
+    return;
+  }
+
+  function hpts_drag(evt) {
+        evt = (evt) ? evt : event;
+        hpts_update_mouse(evt);
+
+        if (hpts_locked_obj) {
+           hpts_locked_obj.style.left = (hpts_mouseX - hpts_offsetX) + "px";
+           hpts_locked_obj.style.top  = (hpts_mouseY - hpts_offsetY) + "px";
+           evt.cancelBubble = true;
+           return false;
+        }
+  }
+
+  function hpts_release(evt) {
+     hpts_locked_obj = null;
   }
 
   var <tmpl_var name>_selected_id = -1;
@@ -446,9 +536,25 @@ our $TEMPLATE_SRC = <<END;
   /* it's showtime! */
   function <tmpl_var name>_show() {
         var obj = document.getElementById("<tmpl_var name>-outer");
-        obj.style.left = hpts_mouseX + "px";
-        obj.style.top  = hpts_mouseY + "px";
+        var x = Math.floor(hpts_mouseX - (<tmpl_var width>/2));
+        x = (x > 2 ? x : 2);
+        var y = Math.floor(hpts_mouseY - (<tmpl_if height><tmpl_var height>/5 * 4<tmpl_else>100</tmpl_if>));
+        y = (y > 2 ? y : 2);
+
+        obj.style.left = x + "px";
+        obj.style.top  = y + "px";
         obj.style.visibility = "visible";
+
+      <tmpl_if hide_selects>
+        for(var f = 0; f < document.forms.length; f++) {
+          for(var x = 0; x < document.forms[f].elements.length; x++) {
+             var e = document.forms[f].elements[x];
+             if (e.options) {
+                e.style.visibility = "hidden";
+             }
+          }
+        }
+     </tmpl_if>
   }
 
   /* user clicks the ok button */
@@ -481,12 +587,24 @@ our $TEMPLATE_SRC = <<END;
         if (<tmpl_var name>_selected_id != -1) {
                 <tmpl_var name>_toggle_select(<tmpl_var name>_selected_id);
         }
+
+      <tmpl_if hide_selects>
+        for(var f = 0; f < document.forms.length; f++) {
+          for(var x = 0; x < document.forms[f].elements.length; x++) {
+             var e = document.forms[f].elements[x];
+             if (e.options) {
+                e.style.visibility = "visible";
+             }
+          }
+        }
+      </tmpl_if>
   }
 
 </script>
 
 <div id="<tmpl_var name>-outer" class="hpts-outer">
-  <div class="hpts-title"><tmpl_var title></div>
+  <div class="hpts-title" id="<tmpl_var name>-title>"><tmpl_var title></div>
+  <div class="hpts-inner">
   <tmpl_loop loop>
     <tmpl_unless end_block>
        <div nowrap>
@@ -505,6 +623,7 @@ our $TEMPLATE_SRC = <<END;
       </div>
     </tmpl_unless>
   </tmpl_loop>
+  </div>
   <div class="hpts-bbar" nowrap>
     <input class=hpts-button type=button value=" Ok " onclick="<tmpl_var name>_ok()">
     <input class=hpts-button type=button value="Cancel" onclick="<tmpl_var name>_cancel()">

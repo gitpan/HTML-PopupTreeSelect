@@ -1,4 +1,4 @@
-HTML::PopupTreeSelect version 1.1
+HTML::PopupTreeSelect version 1.2
 =================================
 
 This module creates an HTML popup tree selector.  The HTML and
@@ -15,11 +15,17 @@ You can find it here:
 
 CHANGES
 
-    - Fixed bug where IE sometimes decided to wrap rows.
+    - Added ability to drag the widget around the window.
 
-    - Changed code to setup form_field before calling onselect
-      handler.  This allows the onselect handler to submit a form
-      with the value already set.
+    - Added dropshadow in Windows IE.
+
+    - Added workaround for the select-box show-through problem.
+
+    - Added scrollbars to the widget.
+
+    - NOTE: the default CSS has changed.  If you are using your own
+      CSS you'll need to adjust it.  Just run the widget with
+      include_css turned on and you'll see the new classes and settings.
 
 INSTALLATION
 
