@@ -6,7 +6,8 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.3";
+our $VERSION = "1.4";
+our $TEMPLATE_SRC;
 
 =head1 NAME
 
@@ -97,7 +98,9 @@ alpha-numeric and begin with a letter.
 
 =item data
 
-This must be a hash reference containing the following keys:
+This must be a hash reference (or an array reference of these hash
+references, if there are multiple "root" categories) containing
+the following keys:
 
 =over
 
@@ -114,6 +117,12 @@ the user selects this node.
 
 If set to 1 this node will start open (showing its children).  By
 default all nodes start closed.
+
+=item inactive (optional)
+
+If set to 1 this node will not be selectable.  It will not appear as a
+link in the widget and clicking on the label will have no effect.
+However, if it has children they will still be accessible.
 
 =item children (optional)
 
@@ -203,6 +212,13 @@ textareas are not clickable.  This defect is fixed in version 7.1 and
 later.  This option defaults to 0, since this problem only affects
 older browsers.
 
+=item parent_var (optional)
+
+This option includes a 'parent' loop in the template data used to
+construct the widget's HTML.  It's not used by the default template,
+so it defaults to 0.  Set to 1 to use this variable in your own
+template via sub-classing.
+
 =back
 
 =head1 output()
@@ -212,6 +228,33 @@ page.
 
 =cut
 
+=head1 SUBCLASSING
+
+HTML::PopupTreeSelect can be subclassed, for the purposes of -- for
+example -- using a different template engine to generate the HTML.
+Here's one brief example, using the Template engine:
+
+   package My::PopupTreeSelect;
+   use Template;
+   use base 'HTML::PopupTreeSelect';
+
+   sub output {
+       my($self) = @_;
+       return $self->SUPER::output(Template->new);
+   }
+
+   sub _output_generate {
+       my($self, $template, $param) = @_;
+       my $output;
+       $template->process(\$MY_TEMPLATE_SRC, $param, \$output);
+       return $output;
+   }
+
+Of course, $MY_TEMPLATE_SRC will need to be provided, too.
+$HTML::PopupTreeSelect::TEMPLATE_SRC is a global variable,
+so it may be modified to your liking, or your own template
+data can be provided to your own template generator method.
+
 =head1 CAVEATS
 
 =over 4
@@ -220,7 +263,8 @@ page.
 
 The javascript used to implement the widget needs control over the
 global document.onmousedown, document.onmousemove and
-document.onmouseup handlers.  This means that the 
+document.onmouseup handlers.  This means that it's unlikely to play
+nice with other DHTML on the same page.
 
 =back
 
@@ -251,7 +295,7 @@ demonstrates the bug.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2003 Sam Tregar
+Copyright (C) 2003, 2004 Sam Tregar
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl 5 itself.
@@ -275,6 +319,7 @@ sub new {
                        indent_width  => 25,
                        include_css   => 1,
                        image_path    => ".",
+                       parent_var    => 0,
                        @_,
                      }, $pkg);
     
@@ -290,12 +335,11 @@ sub new {
 }
 
 sub output {
-    my $self = shift;
-    our $TEMPLATE_SRC;
-    my $template = HTML::Template->new(scalarref          => \$TEMPLATE_SRC,
-                                       die_on_bad_params => 0,
-                                       global_vars       => 1,
-                                      );
+    my($self, $template) = @_;
+    $template ||= HTML::Template->new(scalarref          => \$TEMPLATE_SRC,
+                                      die_on_bad_params => 0,
+                                      global_vars       => 1,
+                                     );
 
     # build node loop
     my @loop;
@@ -304,20 +348,25 @@ sub output {
                        );
 
     # setup template parameters
-    $template->param(loop => \@loop);
-    $template->param(map { ($_, $self->{$_}) } qw(name height width 
-                                                  indent_width onselect
-                                                  form_field form_field_form
-                                                  button_label
-                                                  button_image title 
-                                                  include_css image_path
-                                                  scrollbars hide_selects
-                                                  hide_textareas
-                                                 ));
-                                                    
-                
+    my %param = (loop => \@loop,
+                map { ($_, $self->{$_}) } qw(name height width 
+                                             indent_width onselect
+                                             form_field form_field_form
+                                             button_label
+                                             button_image title 
+                                             include_css image_path
+                                             scrollbars hide_selects
+                                             hide_textareas
+                                            ));
+
     # get output for the widget
-    my $output = $template->output;
+    my $output;
+    if ($self->can('_output_generate')) {
+        $output = $self->_output_generate($template, \%param);
+    } else {
+        $template->param(%param);
+        $output = $template->output;
+    }
 
     return $output;
 }
@@ -325,25 +374,38 @@ sub output {
 # recursively add nodes to the output loop
 sub _output_node {
     my ($self, %arg) = @_;
-    my $node = $arg{node};
 
-    my $id = next_id();
-    push @{$arg{loop}}, { label       => $node->{label},
-                          value       => $node->{value},
-                          id          => $id,
-                          open        => $node->{open} ? 1 : 0,
-                        };
-    
-    if ($node->{children} and @{$node->{children}}) {
-        $arg{loop}[-1]{has_children} = 1;
-        for my $child (@{$node->{children}}) {
-            $self->_output_node(node   => $child,
-                                loop   => $arg{loop},
-                               );
-        }
-        push @{$arg{loop}}, { end_block => 1 };
+    my @nodes;
+    if (ref $arg{node} eq 'ARRAY') {
+        @nodes = @{$arg{node}};
+    } else {
+        @nodes = ($arg{node});
     }
+
+    for my $node (@nodes) {
+        my $id = next_id();
+
+        push @{$arg{loop}}, { label       => $node->{label},
+                              value       => $node->{value},
+                              id          => $id,
+                              open        => $node->{open} ? 1 : 0,
+                              inactive    => $node->{inactive} ? 1 : 0,
+                              ($self->{parent_var} ? 
+                               (parent => [ $arg{parent} || () ]) : 
+                               ()),
+                            };
     
+        if ($node->{children} and @{$node->{children}}) {
+            $arg{loop}[-1]{has_children} = 1;
+            for my $child (@{$node->{children}}) {
+                $self->_output_node(node   => $child,
+                                    parent => $node,
+                                    loop   => $arg{loop},
+                                   );
+            }
+            push @{$arg{loop}}, { end_block => 1 };
+        }
+    }
 }
 
 { 
@@ -351,7 +413,7 @@ sub _output_node {
     sub next_id { $id++ }
 }
 
-our $TEMPLATE_SRC = <<END;
+$TEMPLATE_SRC = <<END;
 <tmpl_if include_css><style type="text/css"><!--
 
   /* style for the box around the widget */
@@ -637,11 +699,11 @@ our $TEMPLATE_SRC = <<END;
     <tmpl_unless end_block>
        <div nowrap>
           <tmpl_if has_children>
-              <img id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')">          <tmpl_else>
-              <img width=16 height=16 src="<tmpl_var image_path>L.png"><span id="<tmpl_var name>-line-<tmpl_var id>" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')">
+              <img id="<tmpl_var name>-plus-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path><tmpl_if open>minus<tmpl_else>plus</tmpl_if>.png" onclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>ondblclick="<tmpl_var name>_toggle_expand(<tmpl_var id>)" onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>          <tmpl_else>
+              <img width=16 height=16 src="<tmpl_var image_path>L.png"><span id="<tmpl_var name>-line-<tmpl_var id>" <tmpl_unless inactive>onclick="<tmpl_var name>_toggle_select(<tmpl_var id>, '<tmpl_var escape=html value>')"</tmpl_unless>>
           </tmpl_if>
                  <img id="<tmpl_var name>-node-<tmpl_var id>" width=16 height=16 src="<tmpl_var image_path>closed_node.png">
-                 <a href="javascript:void(0);"><tmpl_var label></a>
+                 <tmpl_unless inactive><a href="javascript:void(0);"></tmpl_unless><tmpl_var label><tmpl_unless inactive></a></tmpl_unless>
              </span>
        </div>
        <tmpl_if has_children>
