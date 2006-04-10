@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use HTML::Template 2.6;
 
-our $VERSION = "1.5";
+our $VERSION = "1.6";
 our $TEMPLATE_SRC;
 
 =head1 NAME
@@ -676,6 +676,8 @@ $TEMPLATE_SRC = <<END;
         var y = Math.floor(hpts_mouseY - (hpts_curr_height/5 * 4));
         y = (y > 2 ? y : 2);
 
+        document.getElementById('<tmpl_var name>-inner').style.overflow = 'auto'; /*hack FF(OS X)*/
+
         obj.style.left = x + "px";
         obj.style.top  = y + "px";
         obj.style.visibility = "visible";
@@ -725,6 +727,8 @@ $TEMPLATE_SRC = <<END;
   }
 
   function <tmpl_var name>_close () {
+        document.getElementById('<tmpl_var name>-inner').style.overflow = 'hidden'; /*hack FF(OS X)*/
+
         /* hide window */
         var obj = document.getElementById("<tmpl_var name>-outer");
         obj.style.visibility = "hidden";         

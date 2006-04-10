@@ -1,4 +1,4 @@
-HTML::PopupTreeSelect version 1.5
+HTML::PopupTreeSelect version 1.6
 =================================
 
 This module creates an HTML popup tree selector.  The HTML and
@@ -15,13 +15,9 @@ You can find it here:
 
 CHANGES
 
-1.5 
-    - Added the ability to resize the chooser by dragging the lower
-      edge.  This is off by default but may be turned on using the
-      new 'resizable' option.  (Zac Shepard and Peter Leonard)
-
-    - Fixed a few HTML and CSS standards-compliance problems.
-      (Don Brodale)
+1.6
+    - Fixed bug in Firefox and Camino on Mac OSX.  Scrollbars would
+      stay visible after the widget was hidden. (Don Brodale)
 
 INSTALLATION
 
